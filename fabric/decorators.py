@@ -6,6 +6,7 @@ from fabric import tasks
 from functools import wraps
 from types import StringTypes
 
+from .context_managers import settings
 def task(func):
     """
     Decorator defining a function as a task.
@@ -109,4 +110,22 @@ def runs_once(func):
         return decorated.return_value
     return decorated
 
+
+def with_settings(**kw_settings):
+    """
+    Decorator equivalent of ``fabric.context_managers.settings``.
+
+    Allows you to wrap an entire function as if it was called inside a block
+    with the ``settings`` context manager.  Useful for retrofitting old code so
+    you don't have to change the indention to gain the behavior.
+
+    See ``fabric.context_managers.settings`` for more information about what
+    you can do with this.
+    """
+    def outer(func):
+        def inner(*args, **kwargs):
+            with settings(**kw_settings):
+                return func(*args, **kwargs)
+        return inner
+    return outer
 
