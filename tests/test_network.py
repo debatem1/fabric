@@ -88,9 +88,8 @@ class TestNetwork(FabricTest):
             ("Both username and port",
                 'localhost', username + '@localhost:22'),
         ):
-            eq_.description = "Host-string denormalization: %s" % description
-            yield eq_, denormalize(string1), denormalize(string2) 
-            del eq_.description
+            msg = "Host-string denormalization: %s" % description
+            yield eq_, denormalize(string1), denormalize(string2), msg
 
 
     #
