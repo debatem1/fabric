@@ -24,7 +24,7 @@ class WrappedCallableTask(Task):
     """
     Task for wrapping some sort of callable in a Task object.
 
-    Generally used via the `@task` decorator.
+    Generally used via the ``@task`` decorator.
     """
     def __init__(self, callable):
         super(WrappedCallableTask, self).__init__()
