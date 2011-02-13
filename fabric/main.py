@@ -162,6 +162,14 @@ def load_fab_tasks_from_module(imported):
     return imported.__doc__, extract_tasks(imported_vars)
 
 
+def is_task_module(a):
+    """
+    Determine if the provided value is a task module
+    """
+    return (type(a) is types.ModuleType and
+            getattr(a, "FABRIC_TASK_MODULE", False) is True)
+
+
 def extract_tasks(imported_vars):
     """
     Handle extracting tasks from a given list of variables
@@ -175,12 +183,10 @@ def extract_tasks(imported_vars):
             tasks[callable.name] = callable
         elif is_task(tup):
             tasks[name] = callable
-            continue
-        if type(callable) is not types.ModuleType \
-                or getattr(callable, "FABRIC_TASK_MODULE", False) is False:
-            continue
-        for task_name, task in load_fab_tasks_from_module(callable)[1].items():
-            tasks["%s.%s" % (name, task_name)] = task
+        elif is_task_module(callable):
+            module_docs, module_tasks = load_fab_tasks_from_module(callable)
+            for task_name, task in module_tasks.items():
+                tasks["%s.%s" % (name, task_name)] = task
 
     if using_decorated_tasks:
         def is_usable_task(tup):
