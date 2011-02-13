@@ -216,9 +216,8 @@ def parse_options():
     # Initialize
     #
 
-    usage = "fab [options] <command>[:arg1,arg2=val2," \
-            "host=foo,hosts='h1;h2',...] ..."
-    parser = OptionParser(usage=usage)
+    parser = OptionParser(usage="fab [options] <command>[:arg1,arg2=val2,"
+                                "host=foo,hosts='h1;h2',...] ...")
 
     #
     # Define options that don't become `env` vars (typically ones which cause
