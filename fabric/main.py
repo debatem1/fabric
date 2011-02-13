@@ -15,10 +15,10 @@ import os
 import sys
 import types
 
-from fabric import api # For checking callables against the API
-from fabric.contrib import console, files, project # Ditto
+from fabric import api  # For checking callables against the API
+from fabric.contrib import console, files, project  # Ditto
 from fabric.network import denormalize, interpret_host_string, disconnect_all
-from fabric import state # For easily-mockable access to roles, env and etc
+from fabric import state  # For easily-mockable access to roles, env and etc
 from fabric.state import commands, connections, env_options
 from fabric.utils import abort, indent
 from fabric import decorators
@@ -32,6 +32,7 @@ _internals = reduce(lambda x, y: x + filter(callable, vars(y).values()),
     _modules,
     []
 )
+
 
 def load_settings(path):
     """
@@ -143,6 +144,7 @@ def load_fabfile(path):
 
     return load_fab_tasks_from_module(imported)
 
+
 def load_fab_tasks_from_module(imported):
     """
     Handles loading all of the fab_tasks for a given `imported` module
@@ -150,13 +152,15 @@ def load_fab_tasks_from_module(imported):
     # Obey the use of <module>.__all__ if it is present
     imported_vars = vars(imported)
     if "__all__" in imported_vars:
-        imported_vars = [(name, imported_vars[name]) for name in imported_vars if name in imported_vars["__all__"]]
+        imported_vars = [(name, imported_vars[name]) for name in \
+                imported_vars if name in imported_vars["__all__"]]
     else:
         imported_vars = imported_vars.items()
     # Return a two-tuple value.  First is the documentation, second is a
     # dictionary of callables only (and don't include Fab operations or
     # underscored callables)
     return imported.__doc__, extract_tasks(imported_vars)
+
 
 def extract_tasks(imported_vars):
     """
@@ -172,7 +176,8 @@ def extract_tasks(imported_vars):
         elif is_task(tup):
             tasks[name] = callable
             continue
-        if type(callable) is not types.ModuleType or getattr(callable, "FABRIC_TASK_MODULE", False) is False:
+        if type(callable) is not types.ModuleType \
+                or getattr(callable, "FABRIC_TASK_MODULE", False) is False:
             continue
         for task_name, task in load_fab_tasks_from_module(callable)[1].items():
             tasks["%s.%s" % (name, task_name)] = task
@@ -184,6 +189,7 @@ def extract_tasks(imported_vars):
         tasks = dict(filter(is_usable_task, tasks.items()))
     return tasks
 
+
 def parse_options():
     """
     Handle command-line options with optparse.OptionParser.
@@ -194,11 +200,14 @@ def parse_options():
     # Initialize
     #
 
-    parser = OptionParser(usage="fab [options] <command>[:arg1,arg2=val2,host=foo,hosts='h1;h2',...] ...")
+    usage = "fab [options] <command>[:arg1,arg2=val2," \
+            "host=foo,hosts='h1;h2',...] ..."
+    parser = OptionParser(usage=usage)
 
     #
     # Define options that don't become `env` vars (typically ones which cause
-    # Fabric to do something other than its normal execution, such as --version)
+    # Fabric to do something other than its normal execution, such as
+    # --version)
     #
 
     # Version number (optparse gives you --version but we have to do it
@@ -326,7 +335,7 @@ def _escape_split(sep, argstr):
         return argstr.split(sep)
 
     before, _, after = argstr.partition(escaped_sep)
-    startlist = before.split(sep) # a regular split is fine here
+    startlist = before.split(sep)  # a regular split is fine here
     unfinished = startlist[-1]
     startlist = startlist[:-1]
 
@@ -337,7 +346,7 @@ def _escape_split(sep, argstr):
     # part of the string sent in recursion is the rest of the escaped value.
     unfinished += sep + endlist[0]
 
-    return startlist + [unfinished] + endlist[1:] # put together all the parts
+    return startlist + [unfinished] + endlist[1:]  # put together all the parts
 
 
 def parse_arguments(arguments):
@@ -528,7 +537,7 @@ def main():
         # If user didn't specify any commands to run, show help
         if not (arguments or remainder_arguments):
             parser.print_help()
-            sys.exit(0) # Or should it exit with error (1)?
+            sys.exit(0)  # Or should it exit with error (1)?
 
         # Parse arguments into commands to run (plus args/kwargs/hosts)
         commands_to_run = parse_arguments(arguments)
