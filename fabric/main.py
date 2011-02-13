@@ -177,18 +177,18 @@ def is_task_object(a):
     This returning True signals that all tasks within the fabfile
     module must be Task objects.
     """
-    return isinstance(a, Task) and a.use_decorated
+    return isinstance(a, Task) and a.use_task_objects
 
 def extract_tasks(imported_vars):
     """
     Handle extracting tasks from a given list of variables
     """
     tasks = {}
-    using_decorated_tasks = False
+    using_task_objects = False
     for tup in imported_vars:
         name, callable = tup
         if is_task_object(callable):
-            using_decorated_tasks = True
+            using_task_objects = True
             tasks[callable.name] = callable
         elif is_task(tup):
             tasks[name] = callable
@@ -197,7 +197,7 @@ def extract_tasks(imported_vars):
             for task_name, task in module_tasks.items():
                 tasks["%s.%s" % (name, task_name)] = task
 
-    if using_decorated_tasks:
+    if using_task_objects:
         def is_usable_task(tup):
             name, task = tup
             return name.find('.') != -1 or isinstance(task, Task)

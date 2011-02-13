@@ -9,12 +9,9 @@ class Task(object):
     directly.
     """
     name = 'undefined'
-    use_decorated = True
+    use_task_objects = True
 
     # TODO: make it so that this wraps other decorators as expected 
-    # TODO: turn use_decorated to True by default so all classes that extend
-    #       from it cause them to be registered properly without having to
-    #       explicitly set use_decorated
 
     def run(self):
         raise NotImplementedError
