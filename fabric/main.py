@@ -179,6 +179,7 @@ def is_task_object(a):
     """
     return isinstance(a, Task) and a.use_task_objects
 
+
 def extract_tasks(imported_vars):
     """
     Handle extracting tasks from a given list of variables
