@@ -153,7 +153,7 @@ def load_fab_tasks_from_module(imported):
     imported_vars = vars(imported)
     if "__all__" in imported_vars:
         imported_vars = [(name, imported_vars[name]) for name in \
-                imported_vars if name in imported_vars["__all__"]]
+                         imported_vars if name in imported_vars["__all__"]]
     else:
         imported_vars = imported_vars.items()
     # Return a two-tuple value.  First is the documentation, second is a
