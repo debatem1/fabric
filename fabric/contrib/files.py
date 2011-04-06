@@ -12,7 +12,7 @@ import os
 from fabric.api import *
 
 
-def exists(path, use_sudo=False, verbose=False, via=run):
+def exists(path, use_sudo=False, verbose=False):
     """
     Return True if given path exists on the current remote host.
 
@@ -23,29 +23,28 @@ def exists(path, use_sudo=False, verbose=False, via=run):
     avoid cluttering output. You may specify ``verbose=True`` to change this
     behavior.
     """
-    func = use_sudo and sudo or via
-    via = 'test -e "%s"' % path
+    func = use_sudo and sudo or run
+    cmd = 'test -e "%s"' % path
     # If verbose, run normally
     if verbose:
         with settings(warn_only=True):
-            return not func(via).failed
+            return not func(cmd).failed
     # Otherwise, be quiet
     with settings(hide('everything'), warn_only=True):
-        return not func(via).failed
+        return not func(cmd).failed
 
 
 def first(*args, **kwargs):
     """
     Given one or more file paths, returns first one found, or None if none
-    exist. May specify ``use_sudo`` and ``via`` which are passed to `exists`.
+    exist. May specify ``use_sudo`` which is passed to `exists`.
     """
-    via = 'via' in kwargs and kwargs['via'] or run
     for directory in args:
         if not kwargs.get('use_sudo'):
-            if exists(directory, sudo=False, via=via):
+            if exists(directory, sudo=False):
                 return directory
         else:
-            if exists(directory, via=via):
+            if exists(directory):
                 return directory
 
 
@@ -239,7 +238,7 @@ def comment(filename, regex, use_sudo=False, char='#', backup='.bak'):
     )
 
 
-def contains(filename, text, exact=False, use_sudo=False, via=run):
+def contains(filename, text, exact=False, use_sudo=False):
     """
     Return True if ``filename`` contains ``text``.
 
@@ -254,15 +253,11 @@ def contains(filename, text, exact=False, use_sudo=False, via=run):
 
     If ``use_sudo`` is True, will use `sudo` instead of `run`.
 
-    You can also specify the command that should be written by providing the
-    ``via`` keyward argument.  It defaults to `run`.  Note that using ``use_sudo``
-    as `True` negates this setting.
-
     .. versionchanged:: 1.0
         Swapped the order of the ``filename`` and ``text`` arguments to be
         consistent with other functions in this module.
     """
-    func = use_sudo and sudo or via
+    func = use_sudo and sudo or run
     if exact:
         text = "^%s$" % text
     with settings(hide('everything'), warn_only=True):
@@ -302,16 +297,14 @@ def append(filename, text, use_sudo=False, partial=False, escape=True):
     .. versionchanged:: 1.0
         Changed default value of ``partial`` kwarg to be ``False``.
     """
-    func = use_sudo and sudo or via
-    operator = overwrite and '>' or '>>'
+    func = use_sudo and sudo or run
     # Normalize non-list input to be a list
     if isinstance(text, str):
         text = [text]
     for line in text:
         regex = '^' + re.escape(line) + ('' if partial else '$')
         if (exists(filename) and line
-            and contains(filename, regex, use_sudo=use_sudo, via=via)):
+            and contains(filename, regex, use_sudo=use_sudo)):
             continue
         line = line.replace("'", r'\'') if escape else line
         func("echo '%s' >> %s" % (line, filename))
-
