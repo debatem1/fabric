@@ -8,6 +8,10 @@ import types
 from contextlib import nested
 from StringIO import StringIO
 
+import unittest
+import random
+import types
+
 from nose.tools import raises, eq_
 from fudge import with_patched_object
 
@@ -158,19 +162,20 @@ def test_sudo_prefix_without_user():
 def test_shell_wrap():
     prefix = "prefix"
     command = "command"
-    for description, shell, sudo_prefix, result in (
-        ("shell=True, sudo_prefix=None",
-            True, None, "%s \"%s\"" % (env.shell, command)),
-        ("shell=True, sudo_prefix=string",
-            True, prefix, prefix + " %s \"%s\"" % (env.shell, command)),
-        ("shell=False, sudo_prefix=None",
-            False, None, command),
-        ("shell=False, sudo_prefix=string",
-            False, prefix, prefix + " " + command),
-    ):
-        eq_.description = "_shell_wrap: %s" % description
-        yield eq_, _shell_wrap(command, shell, sudo_prefix), result
-        del eq_.description
+    with settings(use_shell=True):
+        for description, shell, sudo_prefix, result in (
+            ("shell=True, sudo_prefix=None",
+                True, None, "%s \"%s\"" % (env.shell, command)),
+            ("shell=True, sudo_prefix=string",
+                True, prefix, prefix + " %s \"%s\"" % (env.shell, command)),
+            ("shell=False, sudo_prefix=None",
+                False, None, command),
+            ("shell=False, sudo_prefix=string",
+                False, prefix, prefix + " " + command),
+        ):
+            eq_.description = "_shell_wrap: %s" % description
+            yield eq_, _shell_wrap(command, shell, sudo_prefix), result
+            del eq_.description
 
 
 def test_shell_wrap_escapes_command_if_shell_is_true():
@@ -178,10 +183,11 @@ def test_shell_wrap_escapes_command_if_shell_is_true():
     _shell_wrap() escapes given command if shell=True
     """
     cmd = "cd \"Application Support\""
-    eq_(
-        _shell_wrap(cmd, shell=True),
-        '%s "%s"' % (env.shell, _shell_escape(cmd))
-    )
+    with settings(use_shell=True):
+        eq_(
+            _shell_wrap(cmd, shell=True),
+            '%s "%s"' % (env.shell, _shell_escape(cmd))
+        )
 
 
 def test_shell_wrap_does_not_escape_command_if_shell_is_false():
@@ -799,3 +805,4 @@ def test_local_output_and_capture():
                     local.description = d
                     yield local, "echo 'foo' >/dev/null", capture
                     del local.description
+
