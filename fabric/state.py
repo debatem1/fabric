@@ -23,7 +23,7 @@ win32 = (sys.platform == 'win32')
 
 #
 # Environment dictionary - support structures
-# 
+#
 
 class _AttributeDict(dict):
     """
@@ -91,7 +91,7 @@ def _rc_path():
         from win32com.shell.shell import SHGetSpecialFolderPath
         from win32com.shell.shellcon import CSIDL_PROFILE
         return "%s/%s" % (
-            SHGetSpecialFolderPath(0,CSIDL_PROFILE),
+            SHGetSpecialFolderPath(0, CSIDL_PROFILE),
             rc_file
         )
 
@@ -144,7 +144,12 @@ env_options = [
         help="comma-separated list of roles to operate on"
     ),
 
-    make_option('-i',
+    make_option('-x', '--exclude-hosts',
+        default=[],
+        help="comma-separated list of hosts to exclude"
+    ),
+
+    make_option('-i', 
         action='append',
         dest='key_filename',
         default=None,
@@ -242,11 +247,11 @@ env = _AttributeDict({
     'combine_stderr': True,
     'command': None,
     'command_prefixes': [],
-    'cwd': '', # Must be empty string, not None, for concatenation purposes
+    'cwd': '',  # Must be empty string, not None, for concatenation purposes
     'echo_stdin': True,
     'host': None,
     'host_string': None,
-    'lcwd': '', # Must be empty string, not None, for concatenation purposes
+    'lcwd': '',  # Must be empty string, not None, for concatenation purposes
     'local_user': _get_system_username(),
     'output_prefix': True,
     'passwords': {},
@@ -254,7 +259,7 @@ env = _AttributeDict({
     'path_behavior': 'append',
     'port': None,
     'real_fabfile': None,
-    'roledefs': {},
+    'roles': [],
     'roledefs': {},
     # -S so sudo accepts passwd via stdin, -p with our known-value prompt for
     # later detection (thus %s -- gets filled with env.sudo_prompt at runtime)
@@ -268,7 +273,6 @@ env = _AttributeDict({
 # Add in option defaults
 for option in env_options:
     env[option.dest] = option.default
-
 
 #
 # Command dictionary
@@ -284,6 +288,7 @@ commands = {}
 #
 
 connections = HostConnectionCache()
+
 
 def default_channel():
     """
@@ -316,7 +321,7 @@ class _AliasDict(_AttributeDict):
     This also means they will not show up in e.g. ``dict.keys()``.
 
     ..note::
-        
+
         Aliases are recursive, so you may refer to an alias within the key list
         of another alias. Naturally, this means that you can end up with
         infinite loops if you're not careful.

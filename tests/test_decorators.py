@@ -1,7 +1,9 @@
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 from fudge import Fake, with_fakes
+import random
 
 from fabric import decorators
+from fabric.state import env
 from nose.tools import assert_true, assert_false, assert_equal
 
 
@@ -120,3 +122,13 @@ def test_hosts():
 
 def test_needs_multiprocessing():
     assert_true(decorators.needs_multiprocessing())
+
+def test_with_settings_passes_env_vars_into_decorated_function():
+    env.value = True
+    random_return = random.randint(1000, 2000)
+    def some_task():
+        return env.value
+    decorated_task = decorators.with_settings(value=random_return)(some_task)
+    ok_(some_task(), msg="sanity check")
+    eq_(random_return, decorated_task())
+

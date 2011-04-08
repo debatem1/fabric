@@ -17,6 +17,7 @@ from fabric.operations import require, prompt, _sudo_prefix, _shell_wrap, \
 from fabric.api import get, put, hide, show, cd, lcd, local
 from fabric.sftp import SFTP
 
+from fabric.decorators import with_settings
 from utils import *
 from server import (server, PORT, RESPONSES, FILES, PASSWORDS, CLIENT_PRIVKEY,
     USER, CLIENT_PRIVKEY_PASSPHRASE)
@@ -24,6 +25,7 @@ from server import (server, PORT, RESPONSES, FILES, PASSWORDS, CLIENT_PRIVKEY,
 #
 # require()
 #
+
 
 def test_require_single_existing_key():
     """
@@ -111,6 +113,7 @@ def test_require_noniterable_provided_by_key():
 def p(x):
     print x,
 
+
 @mock_streams('stdout')
 @with_patched_object(sys.modules['__builtin__'], 'raw_input', p)
 def test_prompt_appends_space():
@@ -132,7 +135,7 @@ def test_prompt_with_default():
     d = "default!"
     prompt(s, default=d)
     eq_(sys.stdout.getvalue(), "%s [%s] " % (s, d))
-    
+
 
 #
 # run()/sudo()
@@ -155,6 +158,7 @@ def test_sudo_prefix_without_user():
     eq_(_sudo_prefix(user=None), env.sudo_prefix % env.sudo_prompt)
 
 
+@with_settings(use_shell=True)
 def test_shell_wrap():
     prefix = "prefix"
     command = "command"
@@ -173,6 +177,7 @@ def test_shell_wrap():
         del eq_.description
 
 
+@with_settings(use_shell=True)
 def test_shell_wrap_escapes_command_if_shell_is_true():
     """
     _shell_wrap() escapes given command if shell=True
@@ -238,11 +243,9 @@ class TestFileTransfers(FabricTest):
     def exists_locally(self, path):
         return os.path.exists(path)
 
-
     #
     # get()
     #
-
     @server(files={'/home/user/.bashrc': 'bash!'}, home='/home/user')
     def test_get_relative_remote_dir_uses_home(self):
         """
@@ -251,8 +254,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             # Another if-it-doesn't-error-out-it-passed test; meh.
             eq_(get('.bashrc', self.path()), [self.path('.bashrc')])
-
-
 
     @server()
     def test_get_single_file(self):
@@ -265,7 +266,6 @@ class TestFileTransfers(FabricTest):
             get(remote, local)
         eq_contents(local, FILES[remote])
 
-
     @server()
     def test_get_sibling_globs(self):
         """
@@ -277,7 +277,6 @@ class TestFileTransfers(FabricTest):
         for remote in remotes:
             eq_contents(self.path(remote), FILES[remote])
 
-
     @server()
     def test_get_single_file_in_folder(self):
         """
@@ -287,7 +286,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             get('folder', self.tmpdir)
         eq_contents(self.path(remote), FILES[remote])
-
 
     @server()
     def test_get_tree(self):
@@ -299,7 +297,6 @@ class TestFileTransfers(FabricTest):
         leaves = filter(lambda x: x[0].startswith('/tree'), FILES.items())
         for path, contents in leaves:
             eq_contents(self.path(path[1:]), contents)
-
 
     @server()
     def test_get_tree_with_implicit_local_path(self):
@@ -320,7 +317,6 @@ class TestFileTransfers(FabricTest):
             if os.path.exists(dirname):
                 shutil.rmtree(dirname)
 
-
     @server()
     def test_get_absolute_path_should_save_relative(self):
         """
@@ -333,7 +329,6 @@ class TestFileTransfers(FabricTest):
         assert self.exists_locally(os.path.join(lpath, 'subfolder'))
         assert not self.exists_locally(os.path.join(lpath, 'tree/subfolder'))
 
-
     @server()
     def test_path_formatstr_nonrecursively_is_just_filename(self):
         """
@@ -344,7 +339,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             get('/tree/subfolder/file3.txt', ltarget)
         assert self.exists_locally(os.path.join(lpath, 'file3.txt'))
-
 
     @server()
     @mock_streams('stderr')
@@ -365,7 +359,6 @@ class TestFileTransfers(FabricTest):
         """
         self._invalid_file_obj_situations('/tree')
 
-
     @server()
     def test_get_single_file_absolutely(self):
         """
@@ -375,7 +368,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             get(target, self.tmpdir)
         eq_contents(self.path(os.path.basename(target)), FILES[target])
-
 
     @server()
     def test_get_file_with_nonexistent_target(self):
@@ -387,7 +379,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             get(target, local)
         eq_contents(local, FILES[target])
-
 
     @server()
     @mock_streams('stderr')
@@ -404,7 +395,6 @@ class TestFileTransfers(FabricTest):
         assert "%s already exists" % local in sys.stderr.getvalue()
         eq_contents(local, FILES[target])
 
-
     @server()
     def test_get_file_to_directory(self):
         """
@@ -417,7 +407,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             get(target, self.tmpdir)
         eq_contents(self.path(target), FILES[target])
-
 
     @server(port=2200)
     @server(port=2201)
@@ -443,7 +432,6 @@ class TestFileTransfers(FabricTest):
                         tmp, "127.0.0.1-%s" % port, 'file3.txt'
                     ))
 
-
     @server()
     def test_get_from_empty_directory_uses_cwd(self):
         """
@@ -455,7 +443,6 @@ class TestFileTransfers(FabricTest):
         # server.FILES.
         for x in "file.txt file2.txt tree/file1.txt".split():
             assert os.path.exists(os.path.join(self.tmpdir, x))
-
 
     @server()
     def _get_to_cwd(self, arg):
@@ -485,7 +472,6 @@ class TestFileTransfers(FabricTest):
         """
         self._get_to_cwd(None)
 
-
     @server()
     def test_get_should_accept_file_like_objects(self):
         """
@@ -496,7 +482,6 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             get(target, fake_file)
         eq_(fake_file.getvalue(), FILES[target])
-
 
     @server()
     def test_get_interpolation_without_host(self):
@@ -514,7 +499,6 @@ class TestFileTransfers(FabricTest):
             get('/folder/file3.txt', local_path)
             assert self.exists_locally(tmp + "bar/file3.txt")
 
-
     @server()
     def test_get_returns_list_of_local_paths(self):
         """
@@ -526,7 +510,6 @@ class TestFileTransfers(FabricTest):
         files = ['file1.txt', 'file2.txt', 'subfolder/file3.txt']
         eq_(map(lambda x: os.path.join(d, 'tree', x), files), retval)
 
-
     @server()
     def test_get_returns_none_for_stringio(self):
         """
@@ -535,17 +518,16 @@ class TestFileTransfers(FabricTest):
         with hide('everything'):
             eq_([], get('/file.txt', StringIO()))
 
-
     @server()
     def test_get_return_value_failed_attribute(self):
         """
-        get()'s return value should indicate any paths which failed to download.
+        get()'s return value should indicate any paths which failed to
+        download.
         """
         with settings(hide('everything'), warn_only=True):
             retval = get('/doesnt/exist', self.path())
         eq_(['/doesnt/exist'], retval.failed)
         assert not retval.succeeded
-
 
     @server()
     def test_get_should_not_use_windows_slashes_in_remote_paths(self):
@@ -557,12 +539,9 @@ class TestFileTransfers(FabricTest):
             sftp = SFTP(env.host_string)
             eq_(sftp.glob(path), [path])
 
-
-
     #
     # put()
     #
-
     @server()
     def test_put_file_to_existing_directory(self):
         """
@@ -577,7 +556,6 @@ class TestFileTransfers(FabricTest):
             put(local, '/')
             get('/foo.txt', local2)
         eq_contents(local2, text)
-
 
     @server()
     def test_put_to_empty_directory_uses_cwd(self):
@@ -596,7 +574,6 @@ class TestFileTransfers(FabricTest):
             put(local)
             get('foo.txt', local2)
         eq_contents(local2, text)
-
 
     @server()
     def test_put_from_empty_directory_uses_cwd(self):
@@ -623,7 +600,6 @@ class TestFileTransfers(FabricTest):
         # Restore cwd
         os.chdir(old_cwd)
 
-
     @server()
     def test_put_should_accept_file_like_objects(self):
         """
@@ -641,7 +617,6 @@ class TestFileTransfers(FabricTest):
         # Sanity test of file pointer
         eq_(pointer, fake_file.tell())
 
-
     @server()
     @raises(ValueError)
     def test_put_should_raise_exception_for_nonexistent_local_path(self):
@@ -649,7 +624,6 @@ class TestFileTransfers(FabricTest):
         put(nonexistent_file) should raise a ValueError
         """
         put('thisfiledoesnotexist', '/tmp')
-
 
     @server()
     def test_put_returns_list_of_remote_paths(self):
@@ -664,7 +638,6 @@ class TestFileTransfers(FabricTest):
             retval = put(f, p)
         eq_(retval, [p])
 
-
     @server()
     def test_put_returns_list_of_remote_paths_with_stringio(self):
         """
@@ -673,7 +646,6 @@ class TestFileTransfers(FabricTest):
         f = 'uploaded.txt'
         with hide('everything'):
             eq_(put(StringIO('contents'), f), [f])
-
 
     @server()
     def test_put_return_value_failed_attribute(self):
@@ -686,12 +658,9 @@ class TestFileTransfers(FabricTest):
         eq_(["<StringIO>"], retval.failed)
         assert not retval.succeeded
 
-
-
     #
     # Interactions with cd()
     #
-
     @server()
     def test_cd_should_apply_to_put(self):
         """
@@ -706,7 +675,6 @@ class TestFileTransfers(FabricTest):
             put(local, f)
         assert self.exists_remotely('%s/%s' % (d, f))
 
-
     @server(files={'/tmp/test.txt': 'test'})
     def test_cd_should_apply_to_get(self):
         """
@@ -716,7 +684,6 @@ class TestFileTransfers(FabricTest):
         with nested(cd('/tmp'), hide('everything')):
             get('test.txt', local)
         assert os.path.exists(local)
-
 
     @server()
     def test_cd_should_not_apply_to_absolute_put(self):
@@ -731,7 +698,6 @@ class TestFileTransfers(FabricTest):
         assert not self.exists_remotely('/tmp/test.txt')
         assert self.exists_remotely('/test.txt')
 
-
     @server(files={'/test.txt': 'test'})
     def test_cd_should_not_apply_to_absolute_get(self):
         """
@@ -741,7 +707,6 @@ class TestFileTransfers(FabricTest):
         with nested(cd('/tmp'), hide('everything')):
             get('/test.txt', local)
         assert os.path.exists(local)
-
 
     @server()
     def test_lcd_should_apply_to_put(self):
@@ -757,7 +722,6 @@ class TestFileTransfers(FabricTest):
         with nested(lcd(self.path(d)), hide('everything')):
             put(f, '/')
         assert self.exists_remotely('/%s' % f)
-
 
     @server()
     def test_lcd_should_apply_to_get(self):

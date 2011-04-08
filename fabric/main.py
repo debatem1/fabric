@@ -14,10 +14,10 @@ from optparse import OptionParser
 import os
 import sys
 
-from fabric import api # For checking callables against the API
-from fabric.contrib import console, files, project # Ditto
+from fabric import api  # For checking callables against the API
+from fabric.contrib import console, files, project  # Ditto
 from fabric.network import denormalize, interpret_host_string, disconnect_all
-from fabric import state # For easily-mockable access to roles, env and etc
+from fabric import state  # For easily-mockable access to roles, env and etc
 from fabric.state import commands, connections, env_options
 from fabric.utils import abort, indent
 from fabric.decorators import is_parallel, is_sequential, needs_multiprocessing
@@ -30,6 +30,8 @@ _internals = reduce(lambda x, y: x + filter(callable, vars(y).values()),
     _modules,
     []
 )
+state.env.ensure_order = False
+
 
 def load_settings(path):
     """
@@ -159,7 +161,8 @@ def parse_options():
 
     #
     # Define options that don't become `env` vars (typically ones which cause
-    # Fabric to do something other than its normal execution, such as --version)
+    # Fabric to do something other than its normal execution, such as
+    # --version)
     #
 
     # Version number (optparse gives you --version but we have to do it
@@ -287,7 +290,7 @@ def _escape_split(sep, argstr):
         return argstr.split(sep)
 
     before, _, after = argstr.partition(escaped_sep)
-    startlist = before.split(sep) # a regular split is fine here
+    startlist = before.split(sep)  # a regular split is fine here
     unfinished = startlist[-1]
     startlist = startlist[:-1]
 
@@ -298,7 +301,7 @@ def _escape_split(sep, argstr):
     # part of the string sent in recursion is the rest of the escaped value.
     unfinished += sep + endlist[0]
 
-    return startlist + [unfinished] + endlist[1:] # put together all the parts
+    return startlist + [unfinished] + endlist[1:]  # put together all the parts
 
 
 def parse_arguments(arguments):
@@ -313,13 +316,14 @@ def parse_arguments(arguments):
         kwargs = {}
         hosts = []
         roles = []
+        exclude_hosts = []
         if ':' in cmd:
             cmd, argstr = cmd.split(':', 1)
             for pair in _escape_split(',', argstr):
                 k, _, v = pair.partition('=')
                 if _:
-                    # Catch, interpret host/hosts/role/roles kwargs
-                    if k in ['host', 'hosts', 'role', 'roles']:
+                    # Catch, interpret host/hosts/role/roles/exclude_hosts kwargs
+                    if k in ['host', 'hosts', 'role', 'roles','exclude_hosts']:
                         if k == 'host':
                             hosts = [v.strip()]
                         elif k == 'hosts':
@@ -328,12 +332,14 @@ def parse_arguments(arguments):
                             roles = [v.strip()]
                         elif k == 'roles':
                             roles = [x.strip() for x in v.split(';')]
+                        elif k == 'exclude_hosts':
+                            exclude_hosts = [x.strip() for x in v.split(';')]
                     # Otherwise, record as usual
                     else:
                         kwargs[k] = v
                 else:
                     args.append(k)
-        cmds.append((cmd, args, kwargs, hosts, roles))
+        cmds.append((cmd, args, kwargs, hosts, roles, exclude_hosts))
     return cmds
 
 
@@ -344,7 +350,7 @@ def parse_remainder(arguments):
     return ' '.join(arguments)
 
 
-def _merge(hosts, roles):
+def _merge(hosts, roles, exclude=[]):
     """
     Merge given host and role lists into one list of deduped hosts.
     """
@@ -363,9 +369,30 @@ def _merge(hosts, roles):
         if callable(value):
             value = value()
         role_hosts += value
-    # Return deduped combo of hosts and role_hosts
-    return list(set(_clean_hosts(hosts + role_hosts)))
 
+    # make sure hosts is converted to a list to be able to append to the
+    # role_hosts list
+    hosts = list(hosts)
+
+    # Return deduped combo of hosts and role_hosts
+    if hasattr(state.env, '_ensure_order') and state.env._ensure_order:
+        result_hosts = []
+        for host in hosts + role_hosts:
+            if host not in result_hosts:
+                result_hosts.append(host)
+
+        if hasattr(state.env, '_sorted') and state.env._sorted:
+            result_hosts.sort()
+        
+    else:
+        result_hosts = list(set(hosts + role_hosts))
+
+    # Remove excluded hosts from results as needed
+    for exclude_host in exclude:
+        if exclude_host in result_hosts:
+            result_hosts.remove(exclude_host)
+
+    return _clean_hosts(result_hosts)
 
 def _clean_hosts(host_list):
     """
@@ -373,28 +400,32 @@ def _clean_hosts(host_list):
     """
     return [host.strip() for host in host_list]
 
-
-def get_hosts(command, cli_hosts, cli_roles):
+def get_hosts(command, cli_hosts, cli_roles, cli_exclude_hosts):
     """
     Return the host list the given command should be using.
 
     See :ref:`execution-model` for detailed documentation on how host lists are
     set.
     """
+    if hasattr(command, '_ensure_order') and command._ensure_order:
+        if hasattr(command, '_sorted') and command._sorted == True:
+            state.env._sorted = command._sorted
+        state.env._ensure_order = command._ensure_order
+
     # Command line per-command takes precedence over anything else.
     if cli_hosts or cli_roles:
-        return _merge(cli_hosts, cli_roles)
+        return _merge(cli_hosts, cli_roles, cli_exclude_hosts)
     # Decorator-specific hosts/roles go next
     func_hosts = getattr(command, 'hosts', [])
     func_roles = getattr(command, 'roles', [])
+    func_exclude_hosts = getattr(command, 'exclude_hosts', [])
     if func_hosts or func_roles:
-        return _merge(func_hosts, func_roles)
+        return _merge(func_hosts, func_roles, func_exclude_hosts)
     # Finally, the env is checked (which might contain globally set lists from
     # the CLI or from module-level code). This will be the empty list if these
     # have not been set -- which is fine, this method should return an empty
     # list if no hosts have been set anywhere.
-    return _merge(state.env['hosts'], state.env['roles'])
-
+    return _merge(state.env['hosts'], state.env['roles'], state.env['exclude_hosts'])
 
 def update_output_levels(show, hide):
     """
@@ -445,8 +476,8 @@ def main():
         for option in env_options:
             state.env[option.dest] = getattr(options, option.dest)
 
-        # Handle --hosts, --roles (comma separated string => list)
-        for key in ['hosts', 'roles']:
+        # Handle --hosts, --roles, --exclude-hosts (comma separated string => list)
+        for key in ['hosts', 'roles', 'exclude_hosts']:
             if key in state.env and isinstance(state.env[key], str):
                 state.env[key] = state.env[key].split(',')
 
@@ -510,7 +541,7 @@ def main():
         # If user didn't specify any commands to run, show help
         if not (arguments or remainder_arguments):
             parser.print_help()
-            sys.exit(0) # Or should it exit with error (1)?
+            sys.exit(0)  # Or should it exit with error (1)?
 
         # Parse arguments into commands to run (plus args/kwargs/hosts)
         commands_to_run = parse_arguments(arguments)
@@ -553,14 +584,14 @@ def main():
                         "Continuing.")
 
         # At this point all commands must exist, so execute them in order.
-        for name, args, kwargs, cli_hosts, cli_roles in commands_to_run:
-            # Get callable by itself:
+        for name, args, kwargs, cli_hosts, cli_roles, cli_exclude_hosts in commands_to_run:
+            # Get callable by itself
             command = commands[name]
             # Set current command name (used for some error messages)
             state.env.command = name
             # Set host list (also copy to env)
             state.env.all_hosts = hosts = get_hosts(
-                command, cli_hosts, cli_roles)
+                command, cli_hosts, cli_roles, cli_exclude_hosts)
 
             if state.output.debug:
                 print "Number for pool: %d" % state.env.pool_size

@@ -49,7 +49,8 @@ def first(*args, **kwargs):
 
 
 def upload_template(filename, destination, context=None, use_jinja=False,
-    template_dir=None, use_sudo=False):
+    template_dir=None, use_sudo=False, backup_file=True,
+    mirror_local_mode=False, mode=None):
     """
     Render and upload a template text file to a remote host.
 
@@ -62,17 +63,23 @@ def upload_template(filename, destination, context=None, use_jinja=False,
     templating library available, Jinja will be used to render the template
     instead. Templates will be loaded from the invoking user's current working
     directory by default, or from ``template_dir`` if given.
-    
+
     The resulting rendered file will be uploaded to the remote file path
     ``destination`` (which should include the desired remote filename.) If the
     destination file already exists, it will be renamed with a ``.bak``
-    extension.
+    extension. You can turn this off by ``backup_file=False``.
 
     By default, the file will be copied to ``destination`` as the logged-in
     user; specify ``use_sudo=True`` to use `sudo` instead.
+
+    In some use cases, it is desirable to force a newly uploaded file to match
+    the mode of its local counterpart (such as when uploading executable
+    scripts). To do this, specify ``mirror_local_mode=True``.
+
+    Alternately, you may use the ``mode`` kwarg to specify an exact mode, in
+    the same vein as ``os.chmod`` or the Unix ``chmod`` command.
     """
     basename = os.path.basename(filename)
-    temp_destination = '/tmp/' + basename
 
     # This temporary file should not be automatically deleted on close, as we
     # need it there to upload it (Windows locks the file for reading while
@@ -96,26 +103,27 @@ def upload_template(filename, destination, context=None, use_jinja=False,
     output.write(text)
     output.close()
 
-    # Upload the file.
-    put(tempfile_name, temp_destination)
-    os.close(tempfile_fd)
-    os.remove(tempfile_name)
-
+    # Back up any original file 
     func = use_sudo and sudo or run
     # Back up any original file (need to do figure out ultimate destination)
-    to_backup = destination
-    with settings(hide('everything'), warn_only=True):
-        # Is destination a directory?
-        if func('test -f %s' % to_backup).failed:
-            # If so, tack on the filename to get "real" destination
-            to_backup = destination + '/' + basename
-    if exists(to_backup):
-        func("cp %s %s.bak" % (to_backup, to_backup))
-    # Actually move uploaded template to destination
-    func("mv %s %s" % (temp_destination, destination))
+    if backup_file:
+        to_backup = destination
+        with settings(hide('everything'), warn_only=True):
+            # Is destination a directory?
+            if func('test -f %s' % to_backup).failed:
+                # If so, tack on the filename to get "real" destination
+                to_backup = destination + '/' + basename
+        if exists(to_backup):
+            func("cp %s %s.bak" % (to_backup, to_backup))
+
+        # Upload the file.
+        put(tempfile_name, destination, use_sudo, mirror_local_mode, mode)
+        os.close(tempfile_fd)
+        os.remove(tempfile_name)
 
 
-def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
+def sed(filename, before, after, limit='', use_sudo=False, backup='.bak',
+        case_insensitive=False):
     """
     Run a search-and-replace on ``filename`` with given regex patterns.
 
@@ -131,6 +139,11 @@ def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
 
     `sed` will pass ``shell=False`` to `run`/`sudo`, in order to avoid problems
     with many nested levels of quotes and backslashes.
+
+    If you would like the matches to be case insensitive, you'd only need to
+    pass the ``case_insensitive=True`` to have it tack on an 'i' to the sed
+    command. Effectively making it execute``sed -i<backup> -r -e "/<limit>/
+    s/<before>/<after>/ig <filename>"``.
     """
     func = use_sudo and sudo or run
     # Characters to be escaped in both
@@ -144,6 +157,11 @@ def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
     if limit:
         limit = r'/%s/ ' % limit
     # Test the OS because of differences between sed versions
+
+    case_bit = ''
+    if case_insensitive:
+        case_bit = 'i'
+
     with hide('running', 'stdout'):
         platform = run("uname")
     if platform in ('NetBSD', 'OpenBSD'):
@@ -154,13 +172,13 @@ def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
         tmp = "/tmp/%s" % hasher.hexdigest()
         # Use temp file to work around lack of -i
         expr = r"""cp -p %(filename)s %(tmp)s \
-&& sed -r -e '%(limit)ss/%(before)s/%(after)s/g' %(filename)s > %(tmp)s \
+&& sed -r -e '%(limit)ss/%(before)s/%(after)s/%(case_bit)sg' %(filename)s > %(tmp)s \
 && cp -p %(filename)s %(filename)s%(backup)s \
 && mv %(tmp)s %(filename)s"""
         command = expr % locals()
     else:
-        expr = r"sed -i%s -r -e '%ss/%s/%s/g' %s"
-        command = expr % (backup, limit, before, after, filename)
+        expr = r"sed -i%s -r -e '%ss/%s/%s/%sg' %s"
+        command = expr % (backup, limit, before, after, case_bit, filename)
     return func(command, shell=False)
 
 
@@ -211,7 +229,7 @@ def comment(filename, regex, use_sudo=False, char='#', backup='.bak'):
     sometimes do when inserted by hand. Neither will they have a trailing space
     unless you specify e.g. ``char='# '``.
 
-    .. note:: 
+    .. note::
 
         In order to preserve the line being commented out, this function will
         wrap your ``regex`` argument in parentheses, so you don't need to. It
@@ -283,7 +301,7 @@ def append(filename, text, use_sudo=False, partial=False, escape=True):
     "append lines to a file" use case. You may override this and force partial
     searching (e.g. ``^<text>``) by specifying ``partial=True``.
 
-    Because ``text`` is single-quoted, single quotes will be transparently 
+    Because ``text`` is single-quoted, single quotes will be transparently
     backslash-escaped. This can be disabled with ``escape=False``.
 
     If ``use_sudo`` is True, will use `sudo` instead of `run`.
@@ -297,7 +315,27 @@ def append(filename, text, use_sudo=False, partial=False, escape=True):
     .. versionchanged:: 1.0
         Changed default value of ``partial`` kwarg to be ``False``.
     """
+    _write_to_file(filename, text, use_sudo=use_sudo)
+
+def write(filename, text, use_sudo=False):
+    """
+    Write string (or list of strings) ``text`` to ``filename``.
+
+    This is identical to ``append()``, except that it overwrites any existing
+    file, instead of appending to it.
+    """
+    _write_to_file(filename, text, use_sudo=use_sudo, overwrite=True)
+
+def _write_to_file(filename, text, use_sudo=False, overwrite=False):
+    """
+    Append or overwrite a the string (or list of strings) ``text`` to
+    ``filename``.
+
+    This is the implementation for both ``write`` and ``append``.  Both call
+    this with the proper value for ``overwrite``.
+    """
     func = use_sudo and sudo or run
+    operator = overwrite and '>' or '>>'
     # Normalize non-list input to be a list
     if isinstance(text, str):
         text = [text]
@@ -307,4 +345,4 @@ def append(filename, text, use_sudo=False, partial=False, escape=True):
             and contains(filename, regex, use_sudo=use_sudo)):
             continue
         line = line.replace("'", r'\'') if escape else line
-        func("echo '%s' >> %s" % (line, filename))
+        func("echo '%s' %s %s" % (line.replace("'", r'\''), operator, filename))
